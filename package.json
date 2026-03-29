@@ -1,0 +1,19 @@
+{
+  "name": "stock-research-toolkit",
+  "version": "1.0.0",
+  "description": "股票研究分析工具 - 获取数据、技术分析、生成报告",
+  "main": "index.js",
+  "scripts": {
+    "stock": "node index.js stock",
+    "batch": "node index.js batch",
+    "search": "node index.js search",
+    "analyze": "node index.js stock"
+  },
+  "keywords": ["stock", "analysis", "trading"],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "axios": "^1.14.0"
+  }
+}
