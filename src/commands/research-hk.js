@@ -2,6 +2,8 @@
  * research-hk.js - 港股策略研究
  * 
  * 使用东方财富数据源，支持港股
+ * 优化：分批次、间歇获取，避免风控
+ * 
  * 使用方法:
  *   node src/commands/research-hk.js
  */
@@ -9,17 +11,31 @@
 const axios = require('axios');
 const Backtester = require('../backtester/engine');
 const { runBatch } = require('../backtester/optimizer');
-const { MAStrategy, RSIStrategy, MomentumStrategy, BollingerStrategy, CombinedStrategy } = require('../backtester/strategies');
+const { CombinedStrategy } = require('../backtester/strategies');
 const fs = require('fs');
 const path = require('path');
 
 const EM_BASE_URL = 'https://push2his.eastmoney.com/api/qt/stock/kline/get';
 
+// 请求间隔控制（毫秒）
+const REQUEST_INTERVAL = 3000;  // 每次请求间隔3秒
+const BATCH_SIZE = 5;          // 每批5只股票
+const BATCH_DELAY = 15000;     // 每批间隔15秒
+const MAX_RETRIES = 3;         // 最大重试次数
+const RETRY_DELAY = 10000;      // 重试间隔10秒
+
 /**
- * 东方财富获取港股K线
+ * 延迟函数
  */
-async function getEMHKCandles(symbol, options = {}) {
-  const { outputSize = 500 } = options;
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * 东方财富获取港股K线（带重试）
+ */
+async function getEMHKCandles(symbol, retries = MAX_RETRIES) {
+  const { outputSize = 500 } = options || {};
   
   // 东方财富格式: secid = 116.XXXXX (港股)
   let code = symbol.replace('.HK', '');
@@ -28,33 +44,45 @@ async function getEMHKCandles(symbol, options = {}) {
   
   const url = `${EM_BASE_URL}?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61&klt=101&fqt=1&end=20500101&lmt=${outputSize}`;
   
-  try {
-    const res = await axios.get(url, {
-      headers: {
-        'Referer': 'https://finance.eastmoney.com/',
-        'User-Agent': 'Mozilla/5.0'
-      },
-      timeout: 10000
-    });
-    
-    const data = res.data.data;
-    if (!data || !data.klines) return [];
-    
-    return data.klines.map(kline => {
-      const [date, open, close, high, low, volume] = kline.split(',');
-      return {
-        date,
-        open: parseFloat(open),
-        close: parseFloat(close),
-        high: parseFloat(high),
-        low: parseFloat(low),
-        volume: parseInt(volume)
-      };
-    });
-  } catch (err) {
-    console.error(`获取港股 ${symbol} 失败:`, err.message);
-    return [];
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const res = await axios.get(url, {
+        headers: {
+          'Referer': 'https://finance.eastmoney.com/',
+          'User-Agent': 'Mozilla/5.0'
+        },
+        timeout: 15000
+      });
+      
+      const data = res.data.data;
+      if (!data || !data.klines || data.klines.length === 0) {
+        return { success: false, reason: '无数据', data: [] };
+      }
+      
+      const candles = data.klines.map(kline => {
+        const [date, open, close, high, low, volume] = kline.split(',');
+        return {
+          date,
+          open: parseFloat(open),
+          close: parseFloat(close),
+          high: parseFloat(high),
+          low: parseFloat(low),
+          volume: parseInt(volume)
+        };
+      });
+      
+      return { success: true, data: candles };
+      
+    } catch (err) {
+      console.error(`   ${symbol} 第${attempt}次尝试失败: ${err.message}`);
+      if (attempt < retries) {
+        console.error(`   ${symbol} ${RETRY_DELAY/1000}秒后重试...`);
+        await sleep(RETRY_DELAY);
+      }
+    }
   }
+  
+  return { success: false, reason: '获取失败', data: [] };
 }
 
 /**
@@ -126,76 +154,151 @@ const HK_STOCKS = [
   { symbol: '09626.HK', name: '哔哩哔哩', sector: '互联网' },
 ];
 
-async function runResearch() {
+/**
+ * 分批次获取数据
+ */
+async function fetchInBatches(stocks) {
+  const results = [];
+  const failed = [];
+  
+  console.log(`\n📡 开始分批次获取 ${stocks.length} 只港股...`);
+  console.log(`   每批 ${BATCH_SIZE} 只，间隔 ${BATCH_DELAY/1000} 秒\n`);
+  
+  for (let i = 0; i < stocks.length; i += BATCH_SIZE) {
+    const batch = stocks.slice(i, i + BATCH_SIZE);
+    const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+    const totalBatches = Math.ceil(stocks.length / BATCH_SIZE);
+    
+    console.log(`\n📦 第 ${batchNum}/${totalBatches} 批 (${batch.length} 只):`);
+    
+    // 并行获取当前批次
+    const batchPromises = batch.map(async (stock) => {
+      process.stdout.write(`   ${stock.symbol}... `);
+      
+      // 间隔请求
+      await sleep(REQUEST_INTERVAL);
+      
+      const result = await getEMHKCandles(stock.symbol);
+      
+      if (result.success && result.data.length >= 100) {
+        console.log(`✅ ${result.data.length}根`);
+        return { ...stock, candles: result.data, success: true };
+      } else {
+        console.log(`❌ ${result.reason || '数据不足'}`);
+        return { ...stock, candles: null, success: false, reason: result.reason };
+      }
+    });
+    
+    const batchResults = await Promise.all(batchPromises);
+    
+    // 收集结果
+    batchResults.forEach(r => {
+      if (r.success && r.candles) {
+        results.push(r);
+      } else {
+        failed.push({ symbol: r.symbol, name: r.name, sector: r.sector, reason: r.reason });
+      }
+    });
+    
+    // 批次间隔（最后一组不需要等待）
+    if (i + BATCH_SIZE < stocks.length) {
+      console.log(`\n   ⏳ 等待 ${BATCH_DELAY/1000} 秒后继续...\n`);
+      await sleep(BATCH_DELAY);
+    }
+  }
+  
+  return { results, failed };
+}
+
+/**
+ * 运行策略研究
+ */
+async function runResearchForStock(stock, startDate, endDate) {
+  const filteredCandles = stock.candles.filter(c => c.date >= startDate && c.date <= endDate);
+  
+  if (filteredCandles.length < 100) {
+    return null;
+  }
+  
+  const ranges = {
+    maFast: [5, 10, 15],
+    maSlow: [20, 30, 50],
+    rsiPeriod: [7, 14, 21],
+    rsiOversold: [25, 30, 35],
+    rsiOverbought: [65, 70, 75]
+  };
+  
+  const result = runBatch(filteredCandles, CombinedStrategy, {}, ranges, {
+    minTrades: 5,
+    totalTrades: 200
+  });
+  
+  if (result.validCount > 0) {
+    return {
+      ...stock,
+      ...result.results[0],
+      candles: filteredCandles
+    };
+  }
+  
+  return null;
+}
+
+/**
+ * 主函数
+ */
+async function main() {
   console.log(`\n📈 港股策略研究`);
   console.log('='.repeat(50));
   
   const startDate = '2020-01-01';
   const endDate = '2026-03-01';
-  const outputSize = 1500;
   
   console.log(`\n📋 当前研究方向:`);
   console.log(`   数据: 港股日线 ${startDate} ~ ${endDate}`);
   console.log(`   标的: ${HK_STOCKS.length} 只港股`);
   
-  // 获取所有标的的数据
-  console.log('\n📡 从东方财富获取港股数据...');
+  // 分批次获取数据
+  const { results: fetchedStocks, failed: fetchFailed } = await fetchInBatches(HK_STOCKS);
+  
+  console.log(`\n\n📊 数据获取完成:`);
+  console.log(`   成功: ${fetchedStocks.length} 只`);
+  console.log(`   失败: ${fetchFailed.length} 只`);
+  
+  if (fetchFailed.length > 0) {
+    console.log(`\n❌ 数据获取失败:`);
+    fetchFailed.forEach(s => console.log(`   ${s.symbol} ${s.name} - ${s.reason}`));
+  }
+  
+  // 策略研究
+  console.log(`\n\n🔬 开始策略研究...\n`);
   
   const allResults = [];
-  const failedStocks = [];
   
-  for (const stock of HK_STOCKS) {
-    process.stdout.write(`   ${stock.symbol}... `);
+  for (let i = 0; i < fetchedStocks.length; i++) {
+    const stock = fetchedStocks[i];
+    process.stdout.write(`[${i+1}/${fetchedStocks.length}] ${stock.symbol}... `);
     
-    const candles = await getEMHKCandles(stock.symbol, { outputSize });
-    if (!candles || candles.length < 100) {
-      console.log(`❌ 数据不足`);
-      failedStocks.push(stock);
-      continue;
+    const result = await runResearchForStock(stock, startDate, endDate);
+    
+    if (result) {
+      allResults.push(result);
+      console.log(`Sharpe=${result.sharpe?.toFixed(2)}, 年化=${(result.annualReturn * 100).toFixed(1)}%`);
+    } else {
+      console.log(`❌ 策略无效`);
     }
     
-    // 过滤日期范围
-    const filteredCandles = candles.filter(c => c.date >= startDate && c.date <= endDate);
-    if (filteredCandles.length < 100) {
-      console.log(`❌ 日期范围内数据不足`);
-      failedStocks.push(stock);
-      continue;
-    }
-    
-    console.log(`✅ ${filteredCandles.length}根`);
-    
-    // 使用组合策略
-    const StrategyClass = CombinedStrategy;
-    const ranges = {
-      maFast: [5, 10, 15],
-      maSlow: [20, 30, 50],
-      rsiPeriod: [7, 14, 21],
-      rsiOversold: [25, 30, 35],
-      rsiOverbought: [65, 70, 75]
-    };
-    
-    const result = runBatch(filteredCandles, StrategyClass, {}, ranges, {
-      minTrades: 5,
-      totalTrades: 200
-    });
-    
-    if (result.validCount > 0) {
-      const best = result.results[0];
-      allResults.push({
-        ...stock,
-        ...best,
-        candles: filteredCandles
-      });
-      process.stdout.write(`   Sharpe=${best.sharpe?.toFixed(2)}\n`);
-    }
+    // 研究间隔
+    await sleep(500);
   }
   
   // 按Sharpe排序
   allResults.sort((a, b) => (b.sharpe || 0) - (a.sharpe || 0));
   
-  console.log('\n' + '='.repeat(70));
+  // 输出结果
+  console.log('\n' + '='.repeat(90));
   console.log('🏆 港股策略研究结果汇总');
-  console.log('='.repeat(70));
+  console.log('='.repeat(90));
   console.log('代码       名称              行业            Sharpe  年化%   最大回撤%  胜率');
   console.log('-'.repeat(90));
   
@@ -207,29 +310,22 @@ async function runResearch() {
     );
   }
   
-  console.log(`\n📊 共分析 ${HK_STOCKS.length} 只，成功 ${allResults.length} 只，失败 ${failedStocks.length} 只`);
-  
-  if (failedStocks.length > 0) {
-    console.log('\n❌ 数据获取失败:');
-    failedStocks.forEach(s => console.log(`   ${s.symbol} ${s.name}`));
-  }
-  
   // 保存结果
   const report = {
     date: new Date().toISOString().split('T')[0],
     total: HK_STOCKS.length,
-    success: allResults.length,
-    failed: failedStocks.length,
-    results: allResults,
-    failedStocks: failedStocks
+    success: fetchedStocks.length,
+    strategySuccess: allResults.length,
+    failed: fetchFailed,
+    results: allResults
   };
   
   const reportPath = path.join(__dirname, '..', '..', 'reports', `research_hk_${Date.now()}.json`);
   fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
-  console.log(`\n💾 报告已保存: ${reportPath}`);
+  console.log(`\n\n💾 报告已保存: ${reportPath}`);
   
   return report;
 }
 
 // 运行
-runResearch().catch(console.error);
+main().catch(console.error);
