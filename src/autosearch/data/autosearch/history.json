@@ -1,0 +1,199 @@
+{
+  "trades": [],
+  "signals": [
+    {
+      "date": "2026-03-29",
+      "newBuys": [],
+      "continueHold": [],
+      "stopLoss": [],
+      "totalWeight": 0,
+      "cashWeight": 1
+    },
+    {
+      "date": "2026-03-29",
+      "newBuys": [],
+      "continueHold": [],
+      "stopLoss": [],
+      "totalWeight": 0,
+      "cashWeight": 1
+    },
+    {
+      "date": "2026-03-29",
+      "newBuys": [],
+      "continueHold": [],
+      "stopLoss": [],
+      "totalWeight": 0,
+      "cashWeight": 1
+    },
+    {
+      "date": "2026-03-29",
+      "newBuys": [],
+      "continueHold": [],
+      "stopLoss": [],
+      "totalWeight": 0,
+      "cashWeight": 1
+    },
+    {
+      "date": "2026-03-29",
+      "newBuys": [
+        {
+          "symbol": "INTC",
+          "name": "Intel",
+          "weight": 0.07999999999999996,
+          "reason": "强动量"
+        }
+      ],
+      "continueHold": [],
+      "stopLoss": [],
+      "totalWeight": 0.07999999999999996,
+      "cashWeight": 0.92
+    },
+    {
+      "date": "2026-03-29",
+      "newBuys": [
+        {
+          "symbol": "INTC",
+          "name": "Intel",
+          "weight": 0.035748836002741466,
+          "reason": "强动量"
+        },
+        {
+          "symbol": "MRK",
+          "name": "Merck",
+          "weight": 0.08,
+          "reason": "强动量"
+        },
+        {
+          "symbol": "PFE",
+          "name": "Pfizer",
+          "weight": 0.08,
+          "reason": "信号确认"
+        },
+        {
+          "symbol": "CAT",
+          "name": "Caterpillar",
+          "weight": 0.06749390551285193,
+          "reason": "强动量"
+        }
+      ],
+      "continueHold": [],
+      "stopLoss": [],
+      "totalWeight": 0.2632427415155934,
+      "cashWeight": 0.7367572584844067
+    },
+    {
+      "date": "2026-03-29",
+      "newBuys": [
+        {
+          "symbol": "INTC",
+          "name": "Intel",
+          "weight": 0.0339782715268072,
+          "reason": "强动量"
+        },
+        {
+          "symbol": "MRK",
+          "name": "Merck",
+          "weight": 0.08,
+          "reason": "强动量"
+        },
+        {
+          "symbol": "PFE",
+          "name": "Pfizer",
+          "weight": 0.08,
+          "reason": "信号确认"
+        }
+      ],
+      "continueHold": [],
+      "stopLoss": [],
+      "totalWeight": 0.1939782715268072,
+      "cashWeight": 0.8060217284731928
+    },
+    {
+      "date": "2026-03-29",
+      "newBuys": [
+        {
+          "symbol": "INTC",
+          "name": "Intel",
+          "weight": 0.05540160670350598,
+          "reason": "强动量"
+        },
+        {
+          "symbol": "CAT",
+          "name": "Caterpillar",
+          "weight": 0.08,
+          "reason": "强动量"
+        }
+      ],
+      "continueHold": [],
+      "stopLoss": [],
+      "totalWeight": 0.13540160670350598,
+      "cashWeight": 0.864598393296494
+    },
+    {
+      "date": "2026-03-29",
+      "newBuys": [
+        {
+          "symbol": "INTC",
+          "name": "Intel",
+          "weight": 0.035748836002741466,
+          "reason": "强动量"
+        },
+        {
+          "symbol": "MRK",
+          "name": "Merck",
+          "weight": 0.08,
+          "reason": "强动量"
+        },
+        {
+          "symbol": "PFE",
+          "name": "Pfizer",
+          "weight": 0.08,
+          "reason": "信号确认"
+        },
+        {
+          "symbol": "CAT",
+          "name": "Caterpillar",
+          "weight": 0.06749390551285193,
+          "reason": "强动量"
+        }
+      ],
+      "continueHold": [],
+      "stopLoss": [],
+      "totalWeight": 0.2632427415155934,
+      "cashWeight": 0.7367572584844067
+    },
+    {
+      "date": "2026-03-29",
+      "newBuys": [
+        {
+          "symbol": "INTC",
+          "name": "Intel",
+          "weight": 0.035748836002741466,
+          "reason": "强动量"
+        },
+        {
+          "symbol": "MRK",
+          "name": "Merck",
+          "weight": 0.08,
+          "reason": "强动量"
+        },
+        {
+          "symbol": "PFE",
+          "name": "Pfizer",
+          "weight": 0.08,
+          "reason": "信号确认"
+        },
+        {
+          "symbol": "CAT",
+          "name": "Caterpillar",
+          "weight": 0.06749390551285193,
+          "reason": "强动量"
+        }
+      ],
+      "continueHold": [],
+      "stopLoss": [],
+      "totalWeight": 0.2632427415155934,
+      "cashWeight": 0.7367572584844067
+    }
+  ]
+}
