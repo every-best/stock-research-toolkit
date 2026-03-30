@@ -8,11 +8,15 @@
  *   node src/commands/research-us.js
  */
 
-import { getTDailyCandles } from '../data/twelvedata.js';
+import { getDailyCandles } from '../data/twelvedata.js';
 import { runBatch } from '../backtester/optimizer.js';
 import { CombinedStrategy } from '../backtester/strategies.js';
+import { generateProfileMarkdown } from '../autosearch/stock_profiles.js';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Twelve Data API Key
 const TD_API_KEY = process.env.TWELVE_DATA_API_KEY || 'your_api_key_here';
@@ -139,7 +143,7 @@ async function runResearch() {
     process.stdout.write(`[${i+1}/${uniqueStocks.length}] ${stock.symbol}... `);
     
     try {
-      const candles = await getTDailyCandles(stock.symbol, startDate, endDate);
+      const candles = await getDailyCandles(stock.symbol, { start_date: startDate, end_date: endDate });
       
       if (!candles || candles.length < 100) {
         console.log(`❌ 数据不足 (${candles?.length || 0}根)`);
@@ -230,7 +234,14 @@ async function runResearch() {
   fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
   console.log(`\n💾 报告已保存: ${reportPath}`);
   
-  return report;
+  // 生成深度分析
+  const profileMarkdown = generateProfileMarkdown(allResults, 10);
+  
+  return { report, profileMarkdown };
 }
 
-runResearch().catch(console.error);
+// 运行并输出报告
+runResearch().then(({ report, profileMarkdown }) => {
+  console.log('\n✅ 研究完成！');
+  console.log('💡 深度分析已生成，可在 Wiki 报告中查看。');
+}).catch(console.error);
